@@ -33,7 +33,7 @@ JOBS_LOCK = threading.Lock()
 # ---------------------------------------------------------------- helpers
 def safe_name(name, fallback="video"):
     name = re.sub(r'[\\/:*?"<>|\x00-\x1f]+', "_", (name or "").strip())
-    name = re.sub(r"\s+", " ", name).strip(" ._")
+    name = re.sub(r"\s+", " ", name).strip(" .")  # keep "_" (common in usernames)
     return (name or fallback)[:120]
 
 
@@ -44,6 +44,13 @@ def unique_path(base: Path) -> Path:
     while (base.parent / f"{stem} ({i}){suffix}").exists():
         i += 1
     return base.parent / f"{stem} ({i}){suffix}"
+
+
+def user_dir(user):
+    """One folder per account, e.g. ~/Downloads/VDD Videos/irisliang__/."""
+    folder = DOWNLOAD_DIR / safe_name(user) if user else DOWNLOAD_DIR
+    folder.mkdir(parents=True, exist_ok=True)
+    return folder
 
 
 def is_http(url):
@@ -65,7 +72,7 @@ def set_job(job_id, **kw):
 
 
 # ---------------------------------------------------------------- download
-def download_direct(url, name, referer, index, total):
+def download_direct(url, name, referer, index, total, folder):
     req = urllib.request.Request(url, headers={
         "User-Agent": UA,
         **({"Referer": referer} if referer else {}),
@@ -78,7 +85,7 @@ def download_direct(url, name, referer, index, total):
             "image/heic": ".heic", "image/gif": ".gif", "image/avif": ".avif",
         }.get(ctype.split(";")[0].strip().lower(), ".mp4")
         suffix = f"_{index + 1}" if total > 1 else ""
-        out = unique_path(DOWNLOAD_DIR / f"{safe_name(name)}{suffix}{ext}")
+        out = unique_path(folder / f"{safe_name(name)}{suffix}{ext}")
         tmp = out.with_suffix(out.suffix + ".part")
         with open(tmp, "wb") as f:
             while True:
@@ -90,11 +97,14 @@ def download_direct(url, name, referer, index, total):
         return out
 
 
-def download_ytdlp(page_url, cookies_txt, browser):
+def download_ytdlp(page_url, cookies_txt, browser, user):
     import yt_dlp  # imported lazily so /ping works even if yt-dlp is broken
 
+    # Folder per account: the username we were given, else what yt-dlp reports
+    # (for Instagram "channel" is the username).
+    folder = safe_name(user).replace("%", "%%") if user else "%(channel,uploader,uploader_id|Other)s"
     base_opts = {
-        "outtmpl": str(DOWNLOAD_DIR / "%(uploader,channel,id)s_%(id)s.%(ext)s"),
+        "outtmpl": str(DOWNLOAD_DIR) + "/" + folder + "/%(channel,uploader,id)s_%(id)s.%(ext)s",
         "format": "bv*+ba/b",
         "merge_output_format": "mp4",
         "noplaylist": False,
@@ -147,12 +157,14 @@ def run_job(job_id, payload):
         page = payload.get("pageUrl") or ""
         media = [u for u in (payload.get("mediaUrls") or []) if is_http(u)]
         name = payload.get("name") or "video"
+        user = payload.get("user") or None
         files = []
         if media:
+            folder = user_dir(user)
             for i, u in enumerate(media):
-                files.append(download_direct(u, name, page, i, len(media)))
+                files.append(download_direct(u, name, page, i, len(media), folder))
         elif is_http(page):
-            files = download_ytdlp(page, payload.get("cookies"), payload.get("browser"))
+            files = download_ytdlp(page, payload.get("cookies"), payload.get("browser"), user)
         else:
             raise ValueError("No downloadable URL was provided.")
         if not files:
@@ -166,7 +178,7 @@ def run_job(job_id, payload):
 
 def start_job(payload):
     job_id = uuid.uuid4().hex[:12]
-    set_job(job_id, status="queued", payload={k: payload.get(k) for k in ("pageUrl", "name")})
+    set_job(job_id, status="queued", payload={k: payload.get(k) for k in ("pageUrl", "name", "user")})
     threading.Thread(target=run_job, args=(job_id, payload), daemon=True).start()
     return job_id
 
@@ -237,6 +249,7 @@ class Handler(BaseHTTPRequestHandler):
                 "pageUrl": (q.get("page") or [""])[0],
                 "mediaUrls": q.get("media") or [],
                 "name": (q.get("name") or ["video"])[0],
+                "user": (q.get("user") or [""])[0] or None,
                 "browser": (q.get("browser") or [""])[0] or None,
             }
             if payload["browser"] not in (None, "safari", "chrome", "firefox", "edge", "brave"):

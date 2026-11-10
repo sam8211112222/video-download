@@ -13,6 +13,7 @@ var VDDResolve = (function () {
   var IG_STORY_RE = /\/stories\/([^/]+)\/(\d+)/;
   var TH_POST_RE = /\/@([^/]+)\/post\/([A-Za-z0-9_-]+)/;
   var MIN_IMG = 150; // ignore avatars, icons, emoji
+  var IG_RESERVED = /^(p|reel|reels|tv|stories|explore|direct|accounts|about|legal|developer|web|challenge|emails|session|api|audio)$/;
 
   // ------------------------------------------------------------ DOM helpers
   function httpSrc(v) {
@@ -86,6 +87,23 @@ var VDDResolve = (function () {
     return null;
   }
 
+  // The post author's username from the page: /<user>/p/<code>/ URLs, or the
+  // first profile link (/<user>/) inside the post the element belongs to.
+  function igUserFromDom(el) {
+    var m = location.pathname.match(/^\/([A-Za-z0-9._]{1,30})\/(?:p|reel|tv)\//);
+    if (m && !IG_RESERVED.test(m[1])) return m[1];
+    for (var n = el && el.parentElement, d = 0; n && d < 30; n = n.parentElement, d++) {
+      var links = n.querySelectorAll('a[href]');
+      for (var i = 0; i < links.length; i++) {
+        var h = links[i].getAttribute('href').match(/^\/([A-Za-z0-9._]{1,30})\/?$/);
+        if (h && !IG_RESERVED.test(h[1])) return h[1];
+      }
+      if (n.tagName === 'ARTICLE') break;
+      if (n.querySelectorAll('video').length > 3) break;
+    }
+    return null;
+  }
+
   function shortcodeToId(code) {
     var abc = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
     code = code.slice(0, 11);
@@ -141,7 +159,7 @@ var VDDResolve = (function () {
   // Stories (including private accounts you follow) use your logged-in
   // session. Story video_versions are progressive MP4s with audio.
   async function igStory(video, user, storyId) {
-    var res = { items: [], pageUrl: location.href.split('?')[0], name: user + '_story_' + (storyId || Date.now()) };
+    var res = { items: [], user: user, pageUrl: location.href.split('?')[0], name: user + '_story_' + (storyId || Date.now()) };
     try {
       if (storyId) res.items = (await igFetch('/api/v1/media/' + storyId + '/info/')).items || [];
     } catch (e) { /* fall through to the reel tray */ }
@@ -179,18 +197,21 @@ var VDDResolve = (function () {
     }
     var res = {
       items: [],
+      user: null,
       pageUrl: code ? 'https://www.instagram.com/p/' + code + '/' : location.href,
       name: code || id || 'instagram'
     };
-    if (!id) return res;
-    try {
-      var item = (await igFetch('/api/v1/media/' + id + '/info/')).items[0];
-      user = item.user && item.user.username;
-      res.name = (user ? user + '_' : '') + (code || id);
-      res.items = item.carousel_media || [item];
-    } catch (e) {
-      console.warn('[VDD] Instagram API lookup failed:', e);
+    if (id) {
+      try {
+        var item = (await igFetch('/api/v1/media/' + id + '/info/')).items[0];
+        user = item.user && item.user.username;
+        res.items = item.carousel_media || [item];
+      } catch (e) {
+        console.warn('[VDD] Instagram API lookup failed:', e);
+      }
     }
+    res.user = user || igUserFromDom(el);
+    if (res.user) res.name = res.user + '_' + (code || id || 'instagram');
     return res;
   }
 
@@ -198,6 +219,7 @@ var VDDResolve = (function () {
   function threadsPost(el) {
     var m = closestLink(el, TH_POST_RE) || location.pathname.match(TH_POST_RE);
     return {
+      user: m ? m[1] : null,
       pageUrl: m ? 'https://www.threads.com/@' + m[1] + '/post/' + m[2] : location.href,
       name: m ? m[1] + '_' + m[2] : 'threads'
     };
@@ -215,51 +237,54 @@ var VDDResolve = (function () {
       }), video);
       // The lookup worked but there is no video: it's a photo post.
       if (r.items.length && !parts.length) throw new Error('This post is a photo, not a video. Use the Image button (⌥⇧I).');
-      return { mediaUrls: parts.map(bestVideo), pageUrl: r.pageUrl, name: r.name, kind: 'video' };
+      return { mediaUrls: parts.map(bestVideo), pageUrl: r.pageUrl, name: r.name, user: r.user, kind: 'video' };
     }
     if (isThreads && video) {
       var p = threadsPost(video), s = httpSrc(video);
-      return { mediaUrls: s ? [s] : [], pageUrl: p.pageUrl, name: p.name, kind: 'video' };
+      return { mediaUrls: s ? [s] : [], pageUrl: p.pageUrl, name: p.name, user: p.user, kind: 'video' };
     }
     var src = video && httpSrc(video);
     // A plain file URL (not an HLS/DASH manifest) can be fetched directly.
     var ok = src && !/\.(m3u8|mpd)(\?|$)/i.test(src);
-    return { mediaUrls: ok ? [src] : [], pageUrl: location.href, name: pageName(), kind: 'video' };
+    return { mediaUrls: ok ? [src] : [], pageUrl: location.href, name: pageName(), user: null, kind: 'video' };
   }
 
   async function resolveCover(video) {
-    var url = null, pageUrl = location.href, name = pageName();
+    var url = null, pageUrl = location.href, name = pageName(), user = null;
     if (isIG) {
       var r = await igLookup(video);
       var parts = matchByDuration(r.items.filter(function (x) { return x.video_versions; }), video);
       url = parts.length ? bestImage(parts[0]) : null;
-      pageUrl = r.pageUrl; name = r.name;
+      pageUrl = r.pageUrl; name = r.name; user = r.user;
       if (!url && /\/p\//.test(pageUrl)) url = await ogImage(pageUrl).catch(function () { return null; });
     } else if (isThreads) {
       var p = threadsPost(video);
-      pageUrl = p.pageUrl; name = p.name;
+      pageUrl = p.pageUrl; name = p.name; user = p.user;
       url = await ogImage(p.pageUrl.replace(/^https:\/\/www\.threads\.com/, location.origin))
         .catch(function () { return null; });
     }
     if (!url && video && video.poster) url = video.poster;
     if (!url) url = await ogImage(location.href).catch(function () { return null; });
     if (!url) throw new Error('Could not find a cover image for this video');
-    return { mediaUrls: [url], pageUrl: pageUrl, name: name + '_cover', kind: 'image' };
+    return { mediaUrls: [url], pageUrl: pageUrl, name: name + '_cover', user: user, kind: 'image' };
   }
 
   async function resolveImage(img) {
-    var name = pageName(), pageUrl = location.href;
+    var name = pageName(), pageUrl = location.href, user = null;
     if (isIG) {
       var m = location.pathname.match(/\/stories\/([^/]+)(?:\/(\d+))?/);
-      if (m) name = m[1] + '_story_' + (m[2] || Date.now());
-      else if ((m = closestLink(img, IG_POST_RE) || location.pathname.match(IG_POST_RE))) {
-        name = m[1]; pageUrl = 'https://www.instagram.com/p/' + m[1] + '/';
+      if (m && m[1] !== 'highlights') {
+        user = m[1]; name = m[1] + '_story_' + (m[2] || Date.now());
+      } else {
+        // Only used for the username / file name; the photo itself comes from the page.
+        var r = await igLookup(img);
+        user = r.user; name = r.name; pageUrl = r.pageUrl;
       }
     } else if (isThreads) {
       var p = threadsPost(img);
-      name = p.name; pageUrl = p.pageUrl;
+      name = p.name; pageUrl = p.pageUrl; user = p.user;
     }
-    return { mediaUrls: [largestImg(img)], pageUrl: pageUrl, name: name, kind: 'image' };
+    return { mediaUrls: [largestImg(img)], pageUrl: pageUrl, name: name, user: user, kind: 'image' };
   }
 
   // kind 'video': the main video on screen. kind 'image': the main photo on

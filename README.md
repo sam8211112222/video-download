@@ -3,8 +3,8 @@
 直接在 Chrome / Safari 下載正在看的影片、影片封面和照片（Instagram 貼文 / Reels / 限時動態、Threads 等），不經過第三方網站。
 Download the videos, video covers and photos you are viewing in Chrome / Safari (Instagram posts / Reels / Stories, Threads, and more) without any third-party website.
 
-影片儲存在 `~/Downloads/VDD Videos`。
-Videos are saved to `~/Downloads/VDD Videos`.
+檔案依帳號分資料夾存放，例如 `~/Downloads/VDD Videos/irisliang__/`；同一個帳號的影片、封面、照片都在同一個資料夾。抓不到帳號名稱時（例如一般網站），直接放在 `VDD Videos/` 底下。
+Files are sorted into one folder per account, e.g. `~/Downloads/VDD Videos/irisliang__/`; a person's videos, covers and photos all go in the same folder. When no account name can be found (e.g. generic sites), files go straight into `VDD Videos/`.
 
 ## 運作方式 / How it works
 

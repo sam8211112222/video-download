@@ -29,6 +29,13 @@ async function netscapeCookies(pageUrl) {
   return lines.join('\n') + '\n';
 }
 
+// Folder per account: "VDD Videos/<username>/". Chrome rejects path parts
+// that start or end with a dot.
+function userFolder(user) {
+  const u = user ? safeName(user).replace(/^\.+|\.+$/g, '') : '';
+  return u ? `VDD Videos/${u}/` : 'VDD Videos/';
+}
+
 async function downloadDirect(info) {
   const base = safeName(info.name);
   const many = info.mediaUrls.length > 1;
@@ -36,7 +43,7 @@ async function downloadDirect(info) {
     const url = info.mediaUrls[i];
     await chrome.downloads.download({
       url,
-      filename: `VDD Videos/${base}${many ? '_' + (i + 1) : ''}.${extFromUrl(url, info.kind)}`,
+      filename: `${userFolder(info.user)}${base}${many ? '_' + (i + 1) : ''}.${extFromUrl(url, info.kind)}`,
       conflictAction: 'uniquify'
     });
   }
@@ -52,7 +59,7 @@ async function downloadViaServer(info) {
     res = await fetch(`${SERVER}/download`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pageUrl: info.pageUrl, name: info.name, cookies })
+      body: JSON.stringify({ pageUrl: info.pageUrl, name: info.name, user: info.user || null, cookies })
     });
   } catch (_) {
     return { ok: false, error: 'This video needs the VDD helper app.\nStart it with "Start VDD.command" and try again.' };
