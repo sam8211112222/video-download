@@ -24,5 +24,7 @@ cat > "$PLIST" <<PL
 </dict></plist>
 PL
 launchctl unload "$PLIST" 2>/dev/null || true
+pkill -f "server/vdd_server.py" 2>/dev/null || true   # free the port from a manually started helper
+sleep 1
 launchctl load "$PLIST"
 echo "VDD helper will now run at login. Open http://127.0.0.1:17723/"
