@@ -73,6 +73,7 @@ Alternatively, drag the bookmarklets from <http://127.0.0.1:17723/> to the Favor
 - 照片貼文按 Video 會提示改用 Image，不會再丟給 yt-dlp。/ Pressing Video on a photo post now tells you to use Image instead of sending it to yt-dlp.
 - Threads 登入後影片常以串流（blob）播放：VDD 會從播放器資料取得原始 mp4；若只有分開的影像與聲音軌，會由 helper 用 ffmpeg 合併（需要 helper 在執行）。Threads 不會再交給 yt-dlp（它不支援 Threads）。
   When logged in, Threads often plays videos as a stream (blob): VDD reads the original MP4 from the player data; if there are only separate video and audio tracks, the helper joins them with ffmpeg (the helper must be running). Threads is never sent to yt-dlp (it does not support Threads).
+- 「與 QuickTime 不相容」：經過 helper 的影片會自動檢查格式，VP9 / AV1 / Opus 等 Mac 不支援的格式會轉成 H.264 + AAC。/ "Not compatible with QuickTime": videos that go through the helper are checked, and VP9 / AV1 / Opus are converted to H.264 + AAC.
 - Threads 的影片封面來自貼文的 og:image，最大約 640px。IG 的封面則是原尺寸。/ Threads video covers come from the post's og:image (about 640px max); IG covers are full size.
 - yt-dlp 失敗：重新啟動 `Start VDD.command`（會自動更新 yt-dlp）。/ yt-dlp fails: restart `Start VDD.command` (it updates yt-dlp).
 

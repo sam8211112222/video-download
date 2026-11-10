@@ -42,14 +42,21 @@ function vddFiberProbe(video) {
   if (manifest) {
     try {
       var doc = new DOMParser().parseFromString(manifest, 'application/xml');
-      var best = { video: [0, null], audio: [0, null] };
+      // Prefer codecs macOS plays natively (H.264 > HEVC > VP9/AV1; AAC > Opus),
+      // then the highest bitrate. Score = codec rank * 1e12 + bandwidth.
+      function rank(codecs, kind) {
+        if (kind === 'audio') return /^mp4a/.test(codecs) ? 2 : 1;
+        return /^(avc1|avc3)/.test(codecs) ? 3 : /^(hvc1|hev1)/.test(codecs) ? 2 : 1;
+      }
+      var best = { video: [-1, null], audio: [-1, null] };
       Array.prototype.forEach.call(doc.getElementsByTagName('AdaptationSet'), function (set) {
-        var kind = (set.getAttribute('contentType') || set.getAttribute('mimeType') || '').indexOf('audio') >= 0 ? 'audio' : 'video';
+        var setKind = (set.getAttribute('contentType') || set.getAttribute('mimeType') || '').indexOf('audio') >= 0 ? 'audio' : 'video';
         Array.prototype.forEach.call(set.getElementsByTagName('Representation'), function (r) {
-          if ((r.getAttribute('mimeType') || '').indexOf('audio') >= 0) kind = 'audio';
-          var bw = parseInt(r.getAttribute('bandwidth') || '0', 10);
+          var kind = (r.getAttribute('mimeType') || '').indexOf('audio') >= 0 ? 'audio' : setKind;
+          var codecs = r.getAttribute('codecs') || set.getAttribute('codecs') || '';
+          var score = rank(codecs, kind) * 1e12 + parseInt(r.getAttribute('bandwidth') || '0', 10);
           var base = r.getElementsByTagName('BaseURL')[0];
-          if (base && bw >= best[kind][0]) best[kind] = [bw, base.textContent.trim()];
+          if (base && score > best[kind][0]) best[kind] = [score, base.textContent.trim()];
         });
       });
       res.dashVideo = best.video[1];

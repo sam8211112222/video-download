@@ -103,10 +103,66 @@ def download_direct(url, name, referer, index, total, folder):
         return out
 
 
+def find_tool(name):
+    return shutil.which(name) or next(
+        (p for p in (f"/opt/homebrew/bin/{name}", f"/usr/local/bin/{name}") if os.path.exists(p)), None)
+
+
+VIDEO_EXT = {".mp4", ".mov", ".m4v", ".webm", ".mkv"}
+MAC_VIDEO = {"h264", "hevc", "prores"}
+MAC_AUDIO = {"aac", "mp3", "alac", "ac3", "eac3"}
+
+
+def ensure_mac_playable(path):
+    """Make sure QuickTime / Photos / iPhone can open the video.
+
+    Meta's DASH streams and yt-dlp may give VP9 / AV1 video or Opus audio,
+    which macOS reports as "not compatible". Those get converted to
+    H.264 / AAC; HEVC only needs the hvc1 tag. Files already fine are untouched.
+    """
+    path = Path(path)
+    ffprobe, ffmpeg = find_tool("ffprobe"), find_tool("ffmpeg")
+    if path.suffix.lower() not in VIDEO_EXT or not ffprobe or not ffmpeg:
+        return path
+    r = subprocess.run([ffprobe, "-v", "error", "-show_entries",
+                        "stream=codec_type,codec_name,codec_tag_string", "-of", "json", str(path)],
+                       capture_output=True, text=True)
+    try:
+        streams = json.loads(r.stdout).get("streams") or []
+    except ValueError:
+        return path
+    video = [s for s in streams if s.get("codec_type") == "video"]
+    audio = [s for s in streams if s.get("codec_type") == "audio"]
+    if not video:
+        return path
+    vcodec = video[0].get("codec_name")
+    v_ok = vcodec in MAC_VIDEO
+    a_ok = all(s.get("codec_name") in MAC_AUDIO for s in audio)
+    hevc_retag = vcodec == "hevc" and video[0].get("codec_tag_string") != "hvc1"
+    if v_ok and a_ok and not hevc_retag and path.suffix.lower() in (".mp4", ".mov", ".m4v"):
+        return path
+
+    tmp = path.with_name(path.stem + ".vdd-convert.mp4")
+    cmd = [ffmpeg, "-y", "-loglevel", "error", "-i", str(path), "-map", "0:v:0", "-map", "0:a:0?"]
+    if v_ok:
+        cmd += ["-c:v", "copy"] + (["-tag:v", "hvc1"] if vcodec == "hevc" else [])
+    else:
+        cmd += ["-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-pix_fmt", "yuv420p"]
+    cmd += ["-c:a", "copy"] if a_ok else ["-c:a", "aac", "-b:a", "192k"]
+    cmd += ["-movflags", "+faststart", str(tmp)]
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    if r.returncode != 0:
+        tmp.unlink(missing_ok=True)
+        raise RuntimeError("Could not convert to a Mac-compatible format: " + r.stderr[-300:])
+    path.unlink()
+    final = unique_path(path.with_suffix(".mp4"))
+    tmp.rename(final)
+    return final
+
+
 def download_merge(video_url, audio_url, name, referer, folder):
     """Separate video + audio tracks (DASH) -> one MP4 via ffmpeg (no re-encode)."""
-    ffmpeg = shutil.which("ffmpeg") or next(
-        (p for p in ("/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg") if os.path.exists(p)), None)
+    ffmpeg = find_tool("ffmpeg")
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
         v = download_direct(video_url, "v", referer, 0, 1, tmp)
@@ -134,7 +190,7 @@ def download_ytdlp(page_url, cookies_txt, browser, user):
     folder = safe_name(user).replace("%", "%%") if user else "%(channel,uploader,uploader_id|Other)s"
     base_opts = {
         "outtmpl": str(DOWNLOAD_DIR) + "/" + folder + "/%(channel,uploader,id)s_%(id)s.%(ext)s",
-        "format": "bv*+ba/b",
+        "format": "bv*[vcodec^=avc1]+ba[acodec^=mp4a]/b[vcodec^=avc1]/bv*+ba/b",
         "merge_output_format": "mp4",
         "noplaylist": False,
         "quiet": True,
@@ -209,6 +265,7 @@ def run_job(job_id, payload):
             raise ValueError("No downloadable URL was provided.")
         if not files:
             raise RuntimeError("Nothing was downloaded.")
+        files = [ensure_mac_playable(f) for f in files]
         set_job(job_id, status="done", files=[str(f) for f in files])
         notify("VDD downloaded", ", ".join(f.name for f in files))
     except Exception as e:
