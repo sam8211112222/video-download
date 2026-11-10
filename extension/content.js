@@ -1,8 +1,18 @@
 // Floating buttons over the video or photo under the mouse:
 //   video -> [Video] [Cover]      photo -> [Image]
 (function () {
-  if (window.__vddLoaded) return;
-  window.__vddLoaded = true;
+  // Each injection gets a generation number; an older copy (e.g. from before
+  // an extension update) removes itself once a newer one has loaded.
+  var myGen = window.__vddGen = (window.__vddGen || 0) + 1;
+
+  // After the extension is reloaded/updated, this copy of the script can no
+  // longer talk to it ("Extension context invalidated"). The new version is
+  // injected into the tab by background.js, so this old copy just steps aside.
+  var RELOAD_MSG = 'VDD was updated. Reload this page (⌘R) and try again.';
+  function alive() {
+    try { return !!(chrome.runtime && chrome.runtime.id); } catch (e) { return false; }
+  }
+  function isInvalidated(e) { return /context invalidated/i.test(String(e && e.message || e)); }
 
   var ICON_DL = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M12 3a1 1 0 0 1 1 1v9.59l3.3-3.3a1 1 0 1 1 1.4 1.42l-5 5a1 1 0 0 1-1.4 0l-5-5a1 1 0 1 1 1.4-1.42l3.3 3.3V4a1 1 0 0 1 1-1zM5 19a1 1 0 0 1 1-1h12a1 1 0 1 1 0 2H6a1 1 0 0 1-1-1z"/></svg>';
   var ICON_IMG = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zm0 2v9.6l3.3-3.3a1 1 0 0 1 1.4 0l3.3 3.3 2.3-2.3a1 1 0 0 1 1.4 0L19 15.6V6H5zm10.5 1.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z"/></svg>';
@@ -89,8 +99,15 @@
     clearTimeout(hideTimer);
   }
 
+  function teardown() {
+    document.removeEventListener('mousemove', onMove);
+    bar.remove();
+  }
+
   var pending = false;
-  document.addEventListener('mousemove', function (e) {
+  document.addEventListener('mousemove', onMove, { passive: true });
+  function onMove(e) {
+    if (!alive() || window.__vddGen !== myGen) return teardown();
     if (pending) return;
     pending = true;
     requestAnimationFrame(function () {
@@ -103,7 +120,7 @@
         hideTimer = setTimeout(function () { bar.classList.remove('vdd-show'); current = null; }, 400);
       }
     });
-  }, { passive: true });
+  }
   window.addEventListener('scroll', function () {
     if (current && bar.classList.contains('vdd-show')) place();
   }, { passive: true });
@@ -130,6 +147,7 @@
       if (res && res.ok) toast(res.message || 'Downloading…', 'ok');
       else toast((res && res.error) || 'Download failed', 'err');
     } catch (e) {
+      if (isInvalidated(e) || !alive()) { toast(RELOAD_MSG, 'err'); teardown(); return; }
       toast('VDD: ' + e.message, 'err');
     } finally {
       if (button) button.classList.remove('vdd-busy');
@@ -137,6 +155,7 @@
   }
 
   chrome.runtime.onMessage.addListener(function (msg, _sender, reply) {
+    if (window.__vddGen !== myGen) return; // a newer copy handles it
     if (msg && msg.type === 'vdd-download-visible') {
       run(null, function () { return VDDResolve.resolveVisible(msg.kind || 'video'); })
         .then(function () { reply({ ok: true }); });

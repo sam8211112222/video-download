@@ -122,6 +122,17 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   }
 });
 
+// Content scripts are only injected on page load, so after installing or
+// updating VDD, put the new version into tabs that are already open.
+chrome.runtime.onInstalled.addListener(async () => {
+  const tabs = await chrome.tabs.query({ url: ['http://*/*', 'https://*/*'] });
+  for (const tab of tabs) {
+    const target = { tabId: tab.id };
+    chrome.scripting.insertCSS({ target, files: ['content.css'] }).catch(() => {});
+    chrome.scripting.executeScript({ target, files: ['resolve.js', 'content.js'] }).catch(() => {});
+  }
+});
+
 chrome.commands.onCommand.addListener(async (cmd) => {
   const kind = { 'download-visible': 'video', 'download-image': 'image' }[cmd];
   if (!kind) return;
