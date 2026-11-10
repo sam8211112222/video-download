@@ -1,0 +1,43 @@
+.vdd-btn {
+  all: initial;
+  position: fixed !important;
+  z-index: 2147483647 !important;
+  display: none;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(20, 20, 20, 0.82);
+  color: #fff;
+  font: 600 13px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  cursor: pointer;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  transition: background 0.15s;
+}
+.vdd-btn.vdd-show { display: inline-flex; }
+.vdd-btn:hover { background: rgba(0, 110, 255, 0.92); }
+.vdd-btn.vdd-busy { opacity: 0.6; cursor: progress; }
+.vdd-btn svg { display: block; }
+
+.vdd-toast {
+  all: initial;
+  position: fixed !important;
+  z-index: 2147483647 !important;
+  left: 50%;
+  bottom: 32px;
+  transform: translateX(-50%);
+  max-width: min(520px, calc(100vw - 32px));
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: rgba(20, 20, 20, 0.9);
+  color: #fff;
+  font: 500 13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  transition: opacity 0.4s;
+  white-space: pre-wrap;
+}
+.vdd-toast.vdd-ok { border-left: 4px solid #22c55e; }
+.vdd-toast.vdd-err { border-left: 4px solid #ef4444; }
+.vdd-toast.vdd-out { opacity: 0; }

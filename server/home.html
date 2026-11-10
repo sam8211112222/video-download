@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VDD Helper</title>
+<style>
+  :root { --bg:#fafafa; --fg:#1a1a1a; --muted:#666; --card:#fff; --line:#e3e3e3; --accent:#0a66ff; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#161616; --fg:#eee; --muted:#9a9a9a; --card:#202020; --line:#333; } }
+  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.55 -apple-system, BlinkMacSystemFont, sans-serif; }
+  main { max-width:640px; margin:40px auto; padding:0 16px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:18px 20px; margin:16px 0; }
+  h1 { font-size:22px; margin:0 0 4px; } h2 { font-size:16px; margin:0 0 8px; }
+  p, li { color:var(--muted); } ol { padding-left:20px; margin:0; }
+  a.bm { display:inline-block; padding:10px 18px; border-radius:999px; background:var(--accent); color:#fff; font-weight:600; text-decoration:none; cursor:grab; }
+  code { font-size:13px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>VDD helper is running</h1>
+  <p>Videos are saved to <code>~/Downloads/VDD Videos</code>. Keep this helper running while you browse.</p>
+
+  <div class="card">
+    <h2>Safari: install the bookmarklet</h2>
+    <p>Show the Favorites Bar (⇧⌘B), then drag this button onto it:</p>
+    <p><a class="bm" href="__BOOKMARKLET__" onclick="alert('Drag me to your Favorites Bar instead of clicking.');return false;">⬇ VDD Download</a></p>
+    <ol>
+      <li>Turn on Safari → Settings → Advanced → “Show features for web developers”.</li>
+      <li>Then Develop → Developer Settings… → enable “Allow JavaScript from Smart Search Field”.</li>
+      <li>On Instagram / Threads, scroll so the video is on screen, then click <b>⬇ VDD Download</b> in the Favorites Bar.</li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <h2>Chrome: load the extension</h2>
+    <ol>
+      <li>Open <code>chrome://extensions</code> and turn on Developer mode.</li>
+      <li>Click “Load unpacked” and choose the <code>VDD/extension</code> folder.</li>
+      <li>Hover any video and click the <b>Download</b> button (or press ⌥⇧D).</li>
+    </ol>
+  </div>
+</main>
+</body>
+</html>

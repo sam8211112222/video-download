@@ -1,0 +1,28 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  :root { color-scheme: light dark; --bg:#fff; --fg:#1a1a1a; --muted:#666; --btn:#0a66ff; --line:#e5e5e5; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#1e1e1e; --fg:#eee; --muted:#9a9a9a; --line:#333; } }
+  body { margin:0; width:280px; padding:14px; background:var(--bg); color:var(--fg); font:13px/1.4 -apple-system, BlinkMacSystemFont, sans-serif; }
+  h1 { font-size:15px; margin:0 0 10px; }
+  button { display:block; width:100%; margin:0 0 8px; padding:9px 10px; border:0; border-radius:8px; background:var(--btn); color:#fff; font-family:inherit; font-size:13px; font-weight:600; cursor:pointer; }
+  button.secondary { background:transparent; color:var(--fg); border:1px solid var(--line); }
+  .row { display:flex; align-items:center; gap:6px; color:var(--muted); font-size:12px; margin-top:6px; }
+  .dot { width:8px; height:8px; border-radius:50%; background:#aaa; flex:none; }
+  .dot.on { background:#16a34a; } .dot.off { background:#dc2626; }
+  #msg { min-height:16px; font-size:12px; color:var(--muted); margin-bottom:6px; white-space:pre-wrap; }
+  kbd { font-size:11px; border:1px solid var(--line); border-radius:4px; padding:0 4px; }
+</style>
+</head>
+<body>
+  <h1>VDD Video Downloader</h1>
+  <button id="visible">Download video on screen</button>
+  <button id="page" class="secondary">Download this page with yt-dlp</button>
+  <div id="msg"></div>
+  <div class="row"><span id="dot" class="dot"></span><span id="status">Checking helper…</span></div>
+  <div class="row">Tip: hover a video and click <b>Download</b>, or press <kbd>⌥⇧D</kbd></div>
+  <script src="popup.js"></script>
+</body>
+</html>
