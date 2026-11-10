@@ -1,8 +1,14 @@
-.vdd-btn {
+.vdd-bar {
   all: initial;
   position: fixed !important;
   z-index: 2147483647 !important;
   display: none;
+  gap: 6px;
+}
+.vdd-bar.vdd-show { display: flex; }
+.vdd-btn {
+  all: initial;
+  display: inline-flex;
   align-items: center;
   gap: 6px;
   padding: 6px 12px;
@@ -16,7 +22,6 @@
   -webkit-backdrop-filter: blur(6px);
   transition: background 0.15s;
 }
-.vdd-btn.vdd-show { display: inline-flex; }
 .vdd-btn:hover { background: rgba(0, 110, 255, 0.92); }
 .vdd-btn.vdd-busy { opacity: 0.6; cursor: progress; }
 .vdd-btn svg { display: block; }

@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "VDD Video Downloader",
-  "version": "1.0.0",
-  "description": "Download videos you are watching (Instagram, Threads and more) straight from the page.",
+  "version": "1.1.0",
+  "description": "Download the videos, covers and photos you are viewing (Instagram, Threads and more) straight from the page.",
   "permissions": ["downloads", "cookies", "activeTab"],
   "host_permissions": ["<all_urls>"],
   "background": { "service_worker": "background.js" },
@@ -23,6 +23,10 @@
     "download-visible": {
       "suggested_key": { "default": "Alt+Shift+D", "mac": "Alt+Shift+D" },
       "description": "Download the video on screen"
+    },
+    "download-image": {
+      "suggested_key": { "default": "Alt+Shift+I", "mac": "Alt+Shift+I" },
+      "description": "Download the photo (or video cover) on screen"
     }
   }
 }

@@ -72,13 +72,11 @@ def download_direct(url, name, referer, index, total):
     })
     with urllib.request.urlopen(req, timeout=60) as resp:
         ctype = resp.headers.get("Content-Type", "")
-        ext = ".mp4"
-        if "webm" in ctype:
-            ext = ".webm"
-        elif "image/jpeg" in ctype:
-            ext = ".jpg"
-        elif "quicktime" in ctype:
-            ext = ".mov"
+        ext = {
+            "video/webm": ".webm", "video/quicktime": ".mov",
+            "image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp",
+            "image/heic": ".heic", "image/gif": ".gif", "image/avif": ".avif",
+        }.get(ctype.split(";")[0].strip().lower(), ".mp4")
         suffix = f"_{index + 1}" if total > 1 else ""
         out = unique_path(DOWNLOAD_DIR / f"{safe_name(name)}{suffix}{ext}")
         tmp = out.with_suffix(out.suffix + ".part")
@@ -173,10 +171,10 @@ def start_job(payload):
     return job_id
 
 
-def build_bookmarklet():
+def build_bookmarklet(kind):
     """resolve.js (shared with the extension) + a small launcher, as a javascript: URL."""
     src = (HERE.parent / "extension" / "resolve.js").read_text() + "\n" + \
-        (HERE / "bookmarklet_tail.js").read_text().replace("__PORT__", str(PORT))
+        (HERE / "bookmarklet_tail.js").read_text().replace("__PORT__", str(PORT)).replace("__KIND__", kind)
     lines = [ln.strip() for ln in src.splitlines()]
     src = "\n".join(ln for ln in lines if ln and not ln.startswith("//"))
     return "javascript:" + urllib.parse.quote("(function(){" + src + "\n})();", safe="")
@@ -229,7 +227,9 @@ class Handler(BaseHTTPRequestHandler):
         if u.path == "/ping":
             return self._json(200, {"ok": True, "dir": str(DOWNLOAD_DIR)})
         if u.path in ("/", "/index.html"):
-            html = (HERE / "home.html").read_text().replace("__BOOKMARKLET__", build_bookmarklet())
+            html = (HERE / "home.html").read_text() \
+                .replace("__BOOKMARKLET_VIDEO__", build_bookmarklet("video")) \
+                .replace("__BOOKMARKLET_IMAGE__", build_bookmarklet("image"))
             return self._send(200, html, "text/html")
         if u.path == "/dl":
             # Used by the Safari bookmarklet (a top-level navigation, so no CORS / CSP issues).

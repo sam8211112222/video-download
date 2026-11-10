@@ -1,7 +1,7 @@
 # VDD Video Downloader
 
-直接在 Chrome / Safari 下載正在看的影片（Instagram 貼文 / Reels / 限時動態、Threads 等），不經過第三方網站。
-Download the videos you are watching in Chrome / Safari (Instagram posts / Reels / Stories, Threads, and more) without any third-party website.
+直接在 Chrome / Safari 下載正在看的影片、影片封面和照片（Instagram 貼文 / Reels / 限時動態、Threads 等），不經過第三方網站。
+Download the videos, video covers and photos you are viewing in Chrome / Safari (Instagram posts / Reels / Stories, Threads, and more) without any third-party website.
 
 影片儲存在 `~/Downloads/VDD Videos`。
 Videos are saved to `~/Downloads/VDD Videos`.
@@ -37,15 +37,17 @@ Chrome's IG / Threads downloads work without the helper; Safari and the yt-dlp f
 
 1. 打開 `chrome://extensions`，開啟「開發人員模式」。/ Open `chrome://extensions` and turn on Developer mode.
 2. 「載入未封裝項目」→ 選 `VDD/extension` 資料夾。/ Click "Load unpacked" and choose the `VDD/extension` folder.
-3. 把滑鼠移到影片上，點右上角的 **Download**，或按 `⌥⇧D`。/ Hover a video and click **Download**, or press `⌥⇧D`.
+3. 滑鼠移到影片上會出現 **Video**（影片）和 **Cover**（封面）；移到照片上會出現 **Image**。快捷鍵：`⌥⇧D` 下載影片，`⌥⇧I` 下載照片或封面。
+   Hover a video for **Video** and **Cover** buttons, or a photo for an **Image** button. Keys: `⌥⇧D` video, `⌥⇧I` photo or cover.
 
 ### 2b. Safari
 
 1. helper 開著時打開 <http://127.0.0.1:17723/>。/ With the helper running, open <http://127.0.0.1:17723/>.
-2. 把 **⬇ VDD Download** 按鈕拖到「喜好項目列」(⇧⌘B)。/ Drag the **⬇ VDD Download** button to the Favorites Bar (⇧⌘B).
+2. 把 **⬇ VDD Video** 和 **🖼 VDD Image** 兩個按鈕拖到「喜好項目列」(⇧⌘B)。/ Drag the **⬇ VDD Video** and **🖼 VDD Image** buttons to the Favorites Bar (⇧⌘B).
 3. Safari 設定 → 進階 → 勾選「顯示網頁開發者功能」，再到「開發 → 開發者設定…」開啟「允許來自智慧型搜尋欄位的 JavaScript」。
    Safari Settings → Advanced → "Show features for web developers", then Develop → Developer Settings… → enable "Allow JavaScript from Smart Search Field".
-4. 影片在畫面上時，點喜好項目列的 **⬇ VDD Download**。/ With the video on screen, click **⬇ VDD Download** in the Favorites Bar.
+4. **⬇ VDD Video** 下載畫面上的影片；**🖼 VDD Image** 下載畫面上的照片，若畫面上是影片則下載它的封面。
+   **⬇ VDD Video** downloads the video on screen; **🖼 VDD Image** downloads the photo on screen, or the cover if a video is showing.
 
 ## 檔案 / Files
 
@@ -57,6 +59,8 @@ Chrome's IG / Threads downloads work without the helper; Safari and the yt-dlp f
 
 - 按鈕沒出現：擴充功能安裝或更新後要重新整理頁面。/ No button: reload the page after installing or updating the extension.
 - IG 失敗：確認在同一個瀏覽器已登入 IG。IG 改版時可能需要更新 `resolve.js`。/ IG fails: make sure you are logged in to IG in that browser. IG changes may require updating `resolve.js`.
+- 照片貼文按 Video 會提示改用 Image，不會再丟給 yt-dlp。/ Pressing Video on a photo post now tells you to use Image instead of sending it to yt-dlp.
+- Threads 的影片封面來自貼文的 og:image，最大約 640px。IG 的封面則是原尺寸。/ Threads video covers come from the post's og:image (about 640px max); IG covers are full size.
 - yt-dlp 失敗：重新啟動 `Start VDD.command`（會自動更新 yt-dlp）。/ yt-dlp fails: restart `Start VDD.command` (it updates yt-dlp).
 
 請只下載你有權保存的內容，並尊重創作者（尤其是私人帳號）的隱私，不要再散布。

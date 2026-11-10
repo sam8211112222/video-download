@@ -23,12 +23,14 @@
 
   <div class="card">
     <h2>Safari: install the bookmarklet</h2>
-    <p>Show the Favorites Bar (⇧⌘B), then drag this button onto it:</p>
-    <p><a class="bm" href="__BOOKMARKLET__" onclick="alert('Drag me to your Favorites Bar instead of clicking.');return false;">⬇ VDD Download</a></p>
+    <p>Show the Favorites Bar (⇧⌘B), then drag both buttons onto it:</p>
+    <p><a class="bm" href="__BOOKMARKLET_VIDEO__" onclick="alert('Drag me to your Favorites Bar instead of clicking.');return false;">⬇ VDD Video</a>
+       &nbsp;<a class="bm" href="__BOOKMARKLET_IMAGE__" onclick="alert('Drag me to your Favorites Bar instead of clicking.');return false;">🖼 VDD Image</a></p>
+    <p><b>⬇ VDD Video</b> downloads the video on screen. <b>🖼 VDD Image</b> downloads the photo on screen, or the cover of the video on screen.</p>
     <ol>
       <li>Turn on Safari → Settings → Advanced → “Show features for web developers”.</li>
       <li>Then Develop → Developer Settings… → enable “Allow JavaScript from Smart Search Field”.</li>
-      <li>On Instagram / Threads, scroll so the video is on screen, then click <b>⬇ VDD Download</b> in the Favorites Bar.</li>
+      <li>On Instagram / Threads, scroll so the post is on screen, then click a button in the Favorites Bar.</li>
     </ol>
   </div>
 
@@ -37,7 +39,7 @@
     <ol>
       <li>Open <code>chrome://extensions</code> and turn on Developer mode.</li>
       <li>Click “Load unpacked” and choose the <code>VDD/extension</code> folder.</li>
-      <li>Hover any video and click the <b>Download</b> button (or press ⌥⇧D).</li>
+      <li>Hover a video for <b>Video</b> / <b>Cover</b> buttons, or a photo for an <b>Image</b> button (keys: ⌥⇧D video, ⌥⇧I photo/cover).</li>
     </ol>
   </div>
 </main>

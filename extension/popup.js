@@ -5,15 +5,17 @@ async function activeTab() {
   return tab;
 }
 
-document.getElementById('visible').onclick = async () => {
+async function downloadVisible(kind) {
   const tab = await activeTab();
   try {
-    await chrome.tabs.sendMessage(tab.id, { type: 'vdd-download-visible' });
+    await chrome.tabs.sendMessage(tab.id, { type: 'vdd-download-visible', kind });
     window.close();
   } catch (_) {
     msg.textContent = 'Reload the page first (the extension was just installed or updated).';
   }
-};
+}
+document.getElementById('visible').onclick = () => downloadVisible('video');
+document.getElementById('image').onclick = () => downloadVisible('image');
 
 document.getElementById('page').onclick = async () => {
   const tab = await activeTab();

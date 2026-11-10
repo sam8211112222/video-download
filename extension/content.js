@@ -1,37 +1,79 @@
-// Adds a floating "Download" button over any video under the mouse.
+// Floating buttons over the video or photo under the mouse:
+//   video -> [Video] [Cover]      photo -> [Image]
 (function () {
   if (window.__vddLoaded) return;
   window.__vddLoaded = true;
 
-  var btn = document.createElement('button');
-  btn.className = 'vdd-btn';
-  btn.type = 'button';
-  btn.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M12 3a1 1 0 0 1 1 1v9.59l3.3-3.3a1 1 0 1 1 1.4 1.42l-5 5a1 1 0 0 1-1.4 0l-5-5a1 1 0 1 1 1.4-1.42l3.3 3.3V4a1 1 0 0 1 1-1zM5 19a1 1 0 0 1 1-1h12a1 1 0 1 1 0 2H6a1 1 0 0 1-1-1z"/></svg><span>Download</span>';
-  btn.title = 'Download this video (VDD)';
-  var current = null;
-  var hideTimer = null;
+  var ICON_DL = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M12 3a1 1 0 0 1 1 1v9.59l3.3-3.3a1 1 0 1 1 1.4 1.42l-5 5a1 1 0 0 1-1.4 0l-5-5a1 1 0 1 1 1.4-1.42l3.3 3.3V4a1 1 0 0 1 1-1zM5 19a1 1 0 0 1 1-1h12a1 1 0 1 1 0 2H6a1 1 0 0 1-1-1z"/></svg>';
+  var ICON_IMG = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zm0 2v9.6l3.3-3.3a1 1 0 0 1 1.4 0l3.3 3.3 2.3-2.3a1 1 0 0 1 1.4 0L19 15.6V6H5zm10.5 1.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z"/></svg>';
 
-  function mount() { if (!btn.isConnected) document.documentElement.appendChild(btn); }
+  var bar = document.createElement('div');
+  bar.className = 'vdd-bar';
+  function makeBtn(icon, label, title, action) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'vdd-btn';
+    b.innerHTML = icon + '<span>' + label + '</span>';
+    b.title = title;
+    b.addEventListener('click', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      run(b, action);
+    }, true);
+    bar.appendChild(b);
+    return b;
+  }
+  var btnVideo = makeBtn(ICON_DL, 'Video', 'Download this video (VDD)', function () { return VDDResolve.resolveVideo(current); });
+  var btnCover = makeBtn(ICON_IMG, 'Cover', 'Download the cover image (VDD)', function () { return VDDResolve.resolveCover(current); });
+  var btnImage = makeBtn(ICON_IMG, 'Image', 'Download this photo (VDD)', function () { return VDDResolve.resolveImage(current); });
 
-  // Sites like Instagram cover videos with transparent layers, so hit-test
-  // the mouse position against every video's box instead of using mouseover.
-  function videoAt(x, y) {
-    var found = null, bestArea = Infinity;
+  // Capture phase + stopping propagation keeps clicks from pausing/advancing the media.
+  ['pointerdown', 'mousedown', 'mouseup', 'click'].forEach(function (t) {
+    bar.addEventListener(t, function (e) { e.stopPropagation(); }, true);
+  });
+
+  var current = null, currentType = null, hideTimer = null;
+
+  function mount() { if (!bar.isConnected) document.documentElement.appendChild(bar); }
+
+  // Sites like Instagram cover media with transparent layers, so hit-test the
+  // mouse position against every video/photo box instead of using mouseover.
+  // Videos win over photos (a video's thumbnail often sits underneath it).
+  function mediaAt(x, y) {
+    function inside(r) { return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom; }
+    var vid = null, va = Infinity;
     document.querySelectorAll('video').forEach(function (v) {
       var r = v.getBoundingClientRect();
-      if (r.width < 120 || r.height < 80) return;
-      if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) {
-        var a = r.width * r.height;
-        if (a < bestArea) { found = v; bestArea = a; }
-      }
+      if (r.width < 120 || r.height < 80 || !inside(r)) return;
+      if (r.width * r.height < va) { vid = v; va = r.width * r.height; }
     });
-    return found;
+    if (vid) return { el: vid, type: 'video' };
+    var img = null, ia = Infinity;
+    Array.prototype.forEach.call(document.images, function (i) {
+      var r = i.getBoundingClientRect();
+      if (!inside(r) || !VDDResolve.isBigImage(i)) return;
+      if (r.width * r.height < ia) { img = i; ia = r.width * r.height; }
+    });
+    return img ? { el: img, type: 'image' } : null;
   }
 
-  function place(v) {
-    var r = v.getBoundingClientRect();
-    btn.style.top = Math.max(8, r.top + 10) + 'px';
-    btn.style.left = Math.min(innerWidth - 120, r.right - 110) + 'px';
+  function place() {
+    var r = current.getBoundingClientRect();
+    bar.style.top = Math.max(8, r.top + 10) + 'px';
+    bar.style.left = Math.max(8, Math.min(innerWidth - bar.offsetWidth - 8, r.right - bar.offsetWidth - 10)) + 'px';
+  }
+
+  function show(hit) {
+    mount();
+    if (hit.el !== current) {
+      current = hit.el;
+      currentType = hit.type;
+      btnVideo.style.display = btnCover.style.display = hit.type === 'video' ? '' : 'none';
+      btnImage.style.display = hit.type === 'image' ? '' : 'none';
+    }
+    bar.classList.add('vdd-show');
+    place();
+    clearTimeout(hideTimer);
   }
 
   var pending = false;
@@ -40,30 +82,18 @@
     pending = true;
     requestAnimationFrame(function () {
       pending = false;
-      var v = videoAt(e.clientX, e.clientY);
-      if (v) {
-        mount();
-        current = v;
-        place(v);
-        btn.classList.add('vdd-show');
+      if (bar.contains(e.target)) { clearTimeout(hideTimer); return; }
+      var hit = mediaAt(e.clientX, e.clientY);
+      if (hit) show(hit);
+      else {
         clearTimeout(hideTimer);
-      } else if (e.target !== btn && !btn.contains(e.target)) {
-        clearTimeout(hideTimer);
-        hideTimer = setTimeout(function () { btn.classList.remove('vdd-show'); }, 400);
+        hideTimer = setTimeout(function () { bar.classList.remove('vdd-show'); current = null; }, 400);
       }
     });
   }, { passive: true });
-  window.addEventListener('scroll', function () { if (current && btn.classList.contains('vdd-show')) place(current); }, { passive: true });
-
-  // Capture phase + stopping propagation keeps the click from pausing the video.
-  ['pointerdown', 'mousedown', 'mouseup'].forEach(function (t) {
-    btn.addEventListener(t, function (e) { e.stopPropagation(); }, true);
-  });
-  btn.addEventListener('click', function (e) {
-    e.preventDefault();
-    e.stopPropagation();
-    download(current);
-  }, true);
+  window.addEventListener('scroll', function () {
+    if (current && bar.classList.contains('vdd-show')) place();
+  }, { passive: true });
 
   function toast(msg, kind) {
     var t = document.createElement('div');
@@ -74,30 +104,27 @@
     setTimeout(function () { t.remove(); }, 3700);
   }
 
-  async function download(video) {
-    if (btn.classList.contains('vdd-busy')) return;
-    btn.classList.add('vdd-busy');
+  async function run(button, resolver) {
+    if (button && button.classList.contains('vdd-busy')) return;
+    if (button) button.classList.add('vdd-busy');
     try {
-      var info = await VDDResolve.resolve(video);
+      var info = await resolver();
+      if (info.kind === 'image' && !info.mediaUrls.length) throw new Error('No image URL found');
       var res = await chrome.runtime.sendMessage({ type: 'vdd-download', info: info });
       if (res && res.ok) toast(res.message || 'Downloading…', 'ok');
       else toast((res && res.error) || 'Download failed', 'err');
     } catch (e) {
       toast('VDD: ' + e.message, 'err');
     } finally {
-      btn.classList.remove('vdd-busy');
+      if (button) button.classList.remove('vdd-busy');
     }
   }
 
   chrome.runtime.onMessage.addListener(function (msg, _sender, reply) {
     if (msg && msg.type === 'vdd-download-visible') {
-      var v = VDDResolve.pickVideo();
-      if (!v && !msg.allowPage) { toast('No video found on screen', 'err'); reply({ ok: false }); return; }
-      download(v).then(function () { reply({ ok: true }); });
+      run(null, function () { return VDDResolve.resolveVisible(msg.kind || 'video'); })
+        .then(function () { reply({ ok: true }); });
       return true;
-    }
-    if (msg && msg.type === 'vdd-count') {
-      reply({ count: document.querySelectorAll('video').length });
     }
   });
 })();

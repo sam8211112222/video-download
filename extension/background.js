@@ -4,9 +4,9 @@ function safeName(s) {
   return (s || 'video').replace(/[\\/:*?"<>|\x00-\x1f]+/g, '_').replace(/\s+/g, ' ').trim().slice(0, 100) || 'video';
 }
 
-function extFromUrl(url) {
-  const m = new URL(url).pathname.match(/\.(mp4|webm|mov|m4v)$/i);
-  return m ? m[1].toLowerCase() : 'mp4';
+function extFromUrl(url, kind) {
+  const m = new URL(url).pathname.match(/\.(mp4|webm|mov|m4v|jpe?g|png|webp|heic|gif|avif)$/i);
+  return m ? m[1].toLowerCase() : (kind === 'image' ? 'jpg' : 'mp4');
 }
 
 // Cookies for the page's site in Netscape format, so yt-dlp can see
@@ -36,11 +36,12 @@ async function downloadDirect(info) {
     const url = info.mediaUrls[i];
     await chrome.downloads.download({
       url,
-      filename: `VDD Videos/${base}${many ? '_' + (i + 1) : ''}.${extFromUrl(url)}`,
+      filename: `VDD Videos/${base}${many ? '_' + (i + 1) : ''}.${extFromUrl(url, info.kind)}`,
       conflictAction: 'uniquify'
     });
   }
-  return { ok: true, message: many ? `Downloading ${info.mediaUrls.length} videos…` : 'Downloading…' };
+  const what = info.kind === 'image' ? 'image' : 'video';
+  return { ok: true, message: many ? `Downloading ${info.mediaUrls.length} ${what}s…` : `Downloading ${what}…` };
 }
 
 async function downloadViaServer(info) {
@@ -105,7 +106,8 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
 });
 
 chrome.commands.onCommand.addListener(async (cmd) => {
-  if (cmd !== 'download-visible') return;
+  const kind = { 'download-visible': 'video', 'download-image': 'image' }[cmd];
+  if (!kind) return;
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (tab) chrome.tabs.sendMessage(tab.id, { type: 'vdd-download-visible' }).catch(() => {});
+  if (tab) chrome.tabs.sendMessage(tab.id, { type: 'vdd-download-visible', kind }).catch(() => {});
 });
