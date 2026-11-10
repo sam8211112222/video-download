@@ -223,6 +223,13 @@ def start_job(payload):
     return job_id
 
 
+def build_safari_script(kind):
+    """resolve.js + safari_tail.js as plain JS, for the Safari keyboard shortcuts."""
+    src = (HERE.parent / "extension" / "resolve.js").read_text() + "\n" + \
+        (HERE / "safari_tail.js").read_text().replace("__KIND__", kind)
+    return "(function(){\n" + src + "\n})();\n'started';"
+
+
 def build_bookmarklet(kind):
     """resolve.js (shared with the extension) + a small launcher, as a javascript: URL."""
     src = (HERE.parent / "extension" / "resolve.js").read_text() + "\n" + \
@@ -283,6 +290,9 @@ class Handler(BaseHTTPRequestHandler):
                 .replace("__BOOKMARKLET_VIDEO__", build_bookmarklet("video")) \
                 .replace("__BOOKMARKLET_IMAGE__", build_bookmarklet("image"))
             return self._send(200, html, "text/html")
+        if u.path == "/safari.js":
+            kind = "image" if (q.get("kind") or [""])[0] == "image" else "video"
+            return self._send(200, build_safari_script(kind), "text/javascript")
         if u.path == "/dl":
             # Used by the Safari bookmarklet (a top-level navigation, so no CORS / CSP issues).
             payload = {
@@ -323,6 +333,11 @@ class Handler(BaseHTTPRequestHandler):
             payload = json.loads(self.rfile.read(min(length, 2_000_000)) or b"{}")
         except Exception:
             return self._json(400, {"error": "bad JSON"})
+        if payload.get("error"):  # the Safari shortcut could not find anything to download
+            notify("VDD", str(payload["error"])[:200])
+            return self._json(200, {"ok": False})
+        if payload.get("source") == "safari":
+            notify("VDD", "Downloading…")
         self._json(200, {"id": start_job(payload)})
 
 

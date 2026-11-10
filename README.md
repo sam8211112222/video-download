@@ -40,20 +40,31 @@ Chrome's IG / Threads downloads work without the helper; Safari and the yt-dlp f
 3. 滑鼠移到影片上會出現 **Video**（影片）和 **Cover**（封面）；移到照片上會出現 **Image**。快捷鍵：`⌥⇧D` 下載影片，`⌥⇧I` 下載照片或封面。
    Hover a video for **Video** and **Cover** buttons, or a photo for an **Image** button. Keys: `⌥⇧D` video, `⌥⇧I` photo or cover.
 
-### 2b. Safari
+### 2b. Safari（快捷鍵 / keyboard shortcuts）
 
-1. helper 開著時打開 <http://127.0.0.1:17723/>。/ With the helper running, open <http://127.0.0.1:17723/>.
-2. 把 **⬇ VDD Video** 和 **🖼 VDD Image** 兩個按鈕拖到「喜好項目列」(⇧⌘B)。/ Drag the **⬇ VDD Video** and **🖼 VDD Image** buttons to the Favorites Bar (⇧⌘B).
-3. Safari 設定 → 進階 → 勾選「顯示網頁開發者功能」，再到「開發 → 開發者設定…」開啟「允許來自智慧型搜尋欄位的 JavaScript」。
-   Safari Settings → Advanced → "Show features for web developers", then Develop → Developer Settings… → enable "Allow JavaScript from Smart Search Field".
-4. **⬇ VDD Video** 下載畫面上的影片；**🖼 VDD Image** 下載畫面上的照片，若畫面上是影片則下載它的封面。
-   **⬇ VDD Video** downloads the video on screen; **🖼 VDD Image** downloads the photo on screen, or the cover if a video is showing.
+1. 安裝快捷鍵（只要一次）/ Install the shortcuts (once):
+   ```bash
+   ./install-safari-shortcuts.sh
+   ```
+2. Safari 設定 → 進階 → 勾選「顯示網頁開發者功能」，再到「開發」選單勾選「允許來自 Apple Events 的 JavaScript」。
+   Safari Settings → Advanced → "Show features for web developers", then Develop menu → "Allow JavaScript from Apple Events".
+3. 在 IG / Threads 頁面按：/ On an IG / Threads page press:
+   - `⌥⇧D` 下載畫面上的影片 / download the video on screen
+   - `⌥⇧I` 下載畫面上的照片，或影片的封面 / download the photo on screen, or the video's cover
+4. 第一次使用時 macOS 會詢問是否允許控制 Safari，按「好」。/ The first time, macOS asks to allow controlling Safari: click OK.
+
+也可以從 Safari 選單 → 服務 執行。移除：`./install-safari-shortcuts.sh --remove`
+Also available in Safari menu → Services. Remove with `./install-safari-shortcuts.sh --remove`.
+
+不想用快捷鍵的話，也可以從 <http://127.0.0.1:17723/> 把書籤拖到喜好項目列（需開啟「允許來自智慧型搜尋欄位的 JavaScript」）。
+Alternatively, drag the bookmarklets from <http://127.0.0.1:17723/> to the Favorites Bar (needs "Allow JavaScript from Smart Search Field").
 
 ## 檔案 / Files
 
 - `extension/` — Chrome 擴充功能 / Chrome extension (`resolve.js` 也用於 Safari 書籤 / also used by the Safari bookmarklet)
 - `server/vdd_server.py` — 本機 helper，只聽 127.0.0.1:17723 / Local helper, listens on 127.0.0.1:17723 only
 - `Start VDD.command`, `install-autostart.sh` — 啟動方式 / Launchers
+- `install-safari-shortcuts.sh`, `safari/` — Safari 快捷鍵 / Safari keyboard shortcuts
 
 ## 疑難排解 / Troubleshooting
 
