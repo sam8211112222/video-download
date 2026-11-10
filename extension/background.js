@@ -37,15 +37,21 @@ function userFolder(user) {
   return u ? `VDD Videos/${u}/` : 'VDD Videos/';
 }
 
+// <name>_<8 hex>: same media -> same file name (re-downloading replaces it),
+// different media in one post -> different names. Matches tagged_name() in the helper.
+async function taggedName(name, url) {
+  const digest = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(vddMediaKey(url)));
+  const hex = [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2, '0')).join('');
+  return `${safeName(name)}_${hex.slice(0, 8)}`;
+}
+
 async function downloadDirect(info) {
-  const base = safeName(info.name);
   const many = info.mediaUrls.length > 1;
-  for (let i = 0; i < info.mediaUrls.length; i++) {
-    const url = info.mediaUrls[i];
+  for (const url of info.mediaUrls) {
     await chrome.downloads.download({
       url,
-      filename: `${userFolder(info.user)}${base}${many ? '_' + (i + 1) : ''}.${extFromUrl(url, info.kind)}`,
-      conflictAction: 'uniquify'
+      filename: `${userFolder(info.user)}${await taggedName(info.name, url)}.${extFromUrl(url, info.kind)}`,
+      conflictAction: 'overwrite'
     });
   }
   const what = info.kind === 'image' ? 'image' : 'video';

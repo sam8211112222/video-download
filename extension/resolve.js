@@ -66,6 +66,23 @@ function vddFiberProbe(video) {
   return res;
 }
 
+// Identifies the media itself, independent of size, codec or the expiring
+// signature in the URL. Must match media_key() in server/vdd_server.py.
+function vddMediaKey(url) {
+  var u = new URL(url);
+  var efg = u.searchParams.get('efg');
+  if (efg) {
+    try {
+      // Read the digits as text: the ids exceed 2^53, so JSON.parse would round them.
+      var m = atob(efg.replace(/-/g, '+').replace(/_/g, '/')).match(/"xpv_asset_id"\s*:\s*"?(\d+)/);
+      if (m) return 'asset:' + m[1];
+    } catch (e) { /* not base64 */ }
+  }
+  var name = u.pathname.split('/').pop();
+  if (/\.(jpe?g|png|webp|heic|avif|gif)$/i.test(name)) return 'file:' + name.replace(/\.[^.]+$/, '');
+  return 'url:' + u.host + u.pathname;
+}
+
 var VDDResolve = (function () {
   var IG_APP_ID = '936619743392459'; // public app id used by instagram.com web
   var host = location.hostname;

@@ -5,6 +5,8 @@ Runs only on 127.0.0.1. The Chrome extension and the Safari bookmarklet send it
 either direct media URLs (downloaded as-is) or a page URL (handed to yt-dlp).
 Files are saved to ~/Downloads/VDD Videos.
 """
+import base64
+import hashlib
 import json
 import os
 import re
@@ -36,6 +38,37 @@ def safe_name(name, fallback="video"):
     name = re.sub(r'[\\/:*?"<>|\x00-\x1f]+', "_", (name or "").strip())
     name = re.sub(r"\s+", " ", name).strip(" .")  # keep "_" (common in usernames)
     return (name or fallback)[:120]
+
+
+def media_key(url):
+    """What identifies the media itself, independent of size, codec or the
+    expiring signature in the URL (must match vddMediaKey in resolve.js):
+    Meta CDN videos carry xpv_asset_id in the base64 "efg" parameter; images
+    keep the same file name across sizes; anything else uses the URL path."""
+    parsed = urllib.parse.urlparse(url)
+    efg = urllib.parse.parse_qs(parsed.query).get("efg")
+    if efg:
+        try:
+            raw = efg[0].replace("-", "+").replace("_", "/")
+            text = base64.b64decode(raw + "=" * (-len(raw) % 4)).decode("utf-8", "replace")
+            # Same text-based read as resolve.js (JS would round ids above 2^53).
+            m = re.search(r'"xpv_asset_id"\s*:\s*"?(\d+)', text)
+            if m:
+                return f"asset:{m.group(1)}"
+        except (ValueError, TypeError):
+            pass
+    name = parsed.path.rsplit("/", 1)[-1]
+    if re.search(r"\.(jpe?g|png|webp|heic|avif|gif)$", name, re.I):
+        return "file:" + name.rsplit(".", 1)[0]
+    return "url:" + parsed.netloc + parsed.path
+
+
+def tagged_name(name, url):
+    """e.g. yuxx.uana_DfCcSPuAauO_1a2b3c4d: the same media always gets the same
+    name (so downloading it again replaces the old file), different media in
+    one post get different names."""
+    short = hashlib.sha1(media_key(url).encode()).hexdigest()[:8]
+    return f"{safe_name(name)}_{short}"
 
 
 def unique_path(base: Path) -> Path:
@@ -78,7 +111,8 @@ def set_job(job_id, **kw):
 
 
 # ---------------------------------------------------------------- download
-def download_direct(url, name, referer, index, total, folder):
+def download_direct(url, stem, referer, folder):
+    """Saves url as folder/<stem>.<ext>, replacing an existing file of that name."""
     req = urllib.request.Request(url, headers={
         "User-Agent": UA,
         **({"Referer": referer} if referer else {}),
@@ -90,8 +124,7 @@ def download_direct(url, name, referer, index, total, folder):
             "image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp",
             "image/heic": ".heic", "image/gif": ".gif", "image/avif": ".avif",
         }.get(ctype.split(";")[0].strip().lower(), ".mp4")
-        suffix = f"_{index + 1}" if total > 1 else ""
-        out = unique_path(folder / f"{safe_name(name)}{suffix}{ext}")
+        out = folder / f"{stem}{ext}"
         tmp = out.with_suffix(out.suffix + ".part")
         with open(tmp, "wb") as f:
             while True:
@@ -99,7 +132,7 @@ def download_direct(url, name, referer, index, total, folder):
                 if not chunk:
                     break
                 f.write(chunk)
-        tmp.rename(out)
+        tmp.replace(out)
         return out
 
 
@@ -155,8 +188,8 @@ def ensure_mac_playable(path):
         tmp.unlink(missing_ok=True)
         raise RuntimeError("Could not convert to a Mac-compatible format: " + r.stderr[-300:])
     path.unlink()
-    final = unique_path(path.with_suffix(".mp4"))
-    tmp.rename(final)
+    final = path.with_suffix(".mp4")
+    tmp.replace(final)  # replaces an older download of the same media
     return final
 
 
@@ -165,15 +198,16 @@ def download_merge(video_url, audio_url, name, referer, folder):
     ffmpeg = find_tool("ffmpeg")
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
-        v = download_direct(video_url, "v", referer, 0, 1, tmp)
+        stem = tagged_name(name, video_url)
+        v = download_direct(video_url, "v", referer, tmp)
         if not audio_url:
-            out = unique_path(folder / f"{safe_name(name)}{v.suffix}")
+            out = folder / f"{stem}{v.suffix}"
             shutil.move(str(v), out)
             return out
-        a = download_direct(audio_url, "a", referer, 0, 1, tmp)
+        a = download_direct(audio_url, "a", referer, tmp)
         if not ffmpeg:
             raise RuntimeError("ffmpeg is needed to join video and audio: brew install ffmpeg")
-        out = unique_path(folder / f"{safe_name(name)}.mp4")
+        out = folder / f"{stem}.mp4"
         r = subprocess.run([ffmpeg, "-y", "-loglevel", "error", "-i", str(v), "-i", str(a),
                             "-map", "0:v:0", "-map", "1:a:0", "-c", "copy", "-movflags", "+faststart",
                             str(out)], capture_output=True, text=True)
@@ -197,6 +231,7 @@ def download_ytdlp(page_url, cookies_txt, browser, user):
         "no_warnings": True,
         "restrictfilenames": False,
         "windowsfilenames": True,
+        "overwrites": True,  # re-downloading replaces the old file
     }
     attempts = [("no cookies", {})]
     cookie_file = None
@@ -254,8 +289,8 @@ def run_job(job_id, payload):
             files = [download_merge(merge["video"], audio, name, page, user_dir(user))]
         elif media:
             folder = user_dir(user)
-            for i, u in enumerate(media):
-                files.append(download_direct(u, name, page, i, len(media), folder))
+            for u in media:
+                files.append(download_direct(u, tagged_name(name, u), page, folder))
         elif is_http(page) and is_local(page):
             raise ValueError("Open an Instagram or Threads post first, then use VDD there "
                              "(it was used on the VDD page itself).")
