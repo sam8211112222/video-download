@@ -3,6 +3,62 @@
 // Every resolver returns { mediaUrls: [direct file URLs], pageUrl, name, kind }.
 //  - mediaUrls non-empty -> download those files directly
 //  - mediaUrls empty     -> hand pageUrl to yt-dlp on the local helper (videos only)
+// Reads the video's original file URLs from the page's React data (Threads
+// and other Meta players). Must run in the page's own JS world (the Safari
+// bookmarklet does; the extension runs it via chrome.scripting, world MAIN),
+// and must stay self-contained because the extension serializes it.
+// Returns { progressive, dashVideo, dashAudio, types } or null.
+function vddFiberProbe(video) {
+  video = video || document.querySelector('video[data-vdd-probe]');
+  if (!video) return null;
+  var fk = Object.keys(video).find(function (k) { return k.indexOf('__reactFiber') === 0; });
+  if (!fk) return null;
+  var mp4 = /^https:\/\/[^\s"]+\.mp4/;
+  var res = { progressive: null, dashVideo: null, dashAudio: null, types: [] };
+  var manifest = null;
+  function findMpd(o, depth) {
+    if (manifest || !o || depth > 3) return;
+    if (typeof o === 'string') { if (o.indexOf('<MPD') >= 0) manifest = o; return; }
+    if (typeof o !== 'object' || o instanceof Node) return;
+    Object.keys(o).forEach(function (k) { if (k !== 'children' && k.indexOf('__') !== 0) { try { findMpd(o[k], depth + 1); } catch (e) {} } });
+  }
+  function takeSrc(o) {
+    if (res.progressive || !o) return;
+    var s = o.hdSrc || o.sdSrc || o.playable_url_quality_hd || o.playable_url;
+    if (typeof s === 'string' && mp4.test(s)) res.progressive = s;
+  }
+  for (var f = video[fk], d = 0; f && d < 40; f = f.return, d++) {
+    var p = f.memoizedProps;
+    if (!p || typeof p !== 'object') continue;
+    takeSrc(p);
+    if (Array.isArray(p.implementations)) {
+      p.implementations.forEach(function (i) {
+        res.types.push(i.typename || '?');
+        takeSrc(i.data || i);
+        findMpd(i.data || i, 0);
+      });
+    }
+  }
+  if (manifest) {
+    try {
+      var doc = new DOMParser().parseFromString(manifest, 'application/xml');
+      var best = { video: [0, null], audio: [0, null] };
+      Array.prototype.forEach.call(doc.getElementsByTagName('AdaptationSet'), function (set) {
+        var kind = (set.getAttribute('contentType') || set.getAttribute('mimeType') || '').indexOf('audio') >= 0 ? 'audio' : 'video';
+        Array.prototype.forEach.call(set.getElementsByTagName('Representation'), function (r) {
+          if ((r.getAttribute('mimeType') || '').indexOf('audio') >= 0) kind = 'audio';
+          var bw = parseInt(r.getAttribute('bandwidth') || '0', 10);
+          var base = r.getElementsByTagName('BaseURL')[0];
+          if (base && bw >= best[kind][0]) best[kind] = [bw, base.textContent.trim()];
+        });
+      });
+      res.dashVideo = best.video[1];
+      res.dashAudio = best.audio[1];
+    } catch (e) { /* ignore a manifest we cannot parse */ }
+  }
+  return res;
+}
+
 var VDDResolve = (function () {
   var IG_APP_ID = '936619743392459'; // public app id used by instagram.com web
   var host = location.hostname;
@@ -13,6 +69,9 @@ var VDDResolve = (function () {
   var IG_STORY_RE = /\/stories\/([^/]+)\/(\d+)/;
   var TH_POST_RE = /\/@([^/]+)\/post\/([A-Za-z0-9_-]+)/;
   var MIN_IMG = 150; // ignore avatars, icons, emoji
+  // How to run vddFiberProbe: directly (bookmarklet, page world). The extension
+  // replaces this, because content scripts cannot see the page's React data.
+  var probe = function (video) { return Promise.resolve(vddFiberProbe(video)); };
   var IG_RESERVED = /^(p|reel|reels|tv|stories|explore|direct|accounts|about|legal|developer|web|challenge|emails|session|api|audio)$/;
 
   // ------------------------------------------------------------ DOM helpers
@@ -240,8 +299,20 @@ var VDDResolve = (function () {
       return { mediaUrls: parts.map(bestVideo), pageUrl: r.pageUrl, name: r.name, user: r.user, kind: 'video' };
     }
     if (isThreads && video) {
+      // yt-dlp cannot download Threads, so never fall back to it here.
       var p = threadsPost(video), s = httpSrc(video);
-      return { mediaUrls: s ? [s] : [], pageUrl: p.pageUrl, name: p.name, user: p.user, kind: 'video' };
+      var out = { mediaUrls: s ? [s] : [], pageUrl: p.pageUrl, name: p.name, user: p.user, kind: 'video' };
+      if (s) return out;
+      // Playing as a blob stream: read the real file URLs from the player.
+      var pr = await probe(video).catch(function () { return null; });
+      if (pr && pr.progressive) { out.mediaUrls = [pr.progressive]; return out; }
+      if (pr && pr.dashVideo) {
+        out.merge = { video: pr.dashVideo, audio: pr.dashAudio || null };
+        return out;
+      }
+      throw new Error('Could not find this Threads video file' +
+        (pr ? ' (player: ' + (pr.types.join(', ') || 'unknown') + ')' : ' (no player data)') +
+        '. Try playing the video first, or open the post itself.');
     }
     var src = video && httpSrc(video);
     // A plain file URL (not an HLS/DASH manifest) can be fetched directly.
@@ -305,6 +376,7 @@ var VDDResolve = (function () {
     resolveCover: resolveCover,
     resolveImage: resolveImage,
     resolveVisible: resolveVisible,
-    isBigImage: isBigImage
+    isBigImage: isBigImage,
+    setProbe: function (fn) { probe = fn; }
   };
 })();

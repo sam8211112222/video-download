@@ -7,6 +7,17 @@
   var ICON_DL = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M12 3a1 1 0 0 1 1 1v9.59l3.3-3.3a1 1 0 1 1 1.4 1.42l-5 5a1 1 0 0 1-1.4 0l-5-5a1 1 0 1 1 1.4-1.42l3.3 3.3V4a1 1 0 0 1 1-1zM5 19a1 1 0 0 1 1-1h12a1 1 0 1 1 0 2H6a1 1 0 0 1-1-1z"/></svg>';
   var ICON_IMG = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zm0 2v9.6l3.3-3.3a1 1 0 0 1 1.4 0l3.3 3.3 2.3-2.3a1 1 0 0 1 1.4 0L19 15.6V6H5zm10.5 1.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z"/></svg>';
 
+  // Content scripts cannot read the page's React data, so ask the background
+  // to run vddFiberProbe in the page's world on the marked video.
+  VDDResolve.setProbe(async function (video) {
+    video.setAttribute('data-vdd-probe', '1');
+    try {
+      return await chrome.runtime.sendMessage({ type: 'vdd-probe' });
+    } finally {
+      video.removeAttribute('data-vdd-probe');
+    }
+  });
+
   var bar = document.createElement('div');
   bar.className = 'vdd-bar';
   function makeBtn(icon, label, title, action) {
@@ -112,6 +123,9 @@
     try {
       var info = await resolver();
       if (info.kind === 'image' && !info.mediaUrls.length) throw new Error('No image URL found');
+      if (info.merge && !(await chrome.runtime.sendMessage({ type: 'vdd-ping' }) || {}).ok) {
+        throw new Error('This video streams video and audio separately; the VDD helper is needed to join them.\nStart "Start VDD.command" and try again.');
+      }
       var res = await chrome.runtime.sendMessage({ type: 'vdd-download', info: info });
       if (res && res.ok) toast(res.message || 'Downloading…', 'ok');
       else toast((res && res.error) || 'Download failed', 'err');

@@ -8,6 +8,7 @@ Files are saved to ~/Downloads/VDD Videos.
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -97,6 +98,29 @@ def download_direct(url, name, referer, index, total, folder):
         return out
 
 
+def download_merge(video_url, audio_url, name, referer, folder):
+    """Separate video + audio tracks (DASH) -> one MP4 via ffmpeg (no re-encode)."""
+    ffmpeg = shutil.which("ffmpeg") or next(
+        (p for p in ("/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg") if os.path.exists(p)), None)
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        v = download_direct(video_url, "v", referer, 0, 1, tmp)
+        if not audio_url:
+            out = unique_path(folder / f"{safe_name(name)}{v.suffix}")
+            shutil.move(str(v), out)
+            return out
+        a = download_direct(audio_url, "a", referer, 0, 1, tmp)
+        if not ffmpeg:
+            raise RuntimeError("ffmpeg is needed to join video and audio: brew install ffmpeg")
+        out = unique_path(folder / f"{safe_name(name)}.mp4")
+        r = subprocess.run([ffmpeg, "-y", "-loglevel", "error", "-i", str(v), "-i", str(a),
+                            "-map", "0:v:0", "-map", "1:a:0", "-c", "copy", "-movflags", "+faststart",
+                            str(out)], capture_output=True, text=True)
+        if r.returncode != 0:
+            raise RuntimeError("ffmpeg failed: " + r.stderr[-400:])
+        return out
+
+
 def download_ytdlp(page_url, cookies_txt, browser, user):
     import yt_dlp  # imported lazily so /ping works even if yt-dlp is broken
 
@@ -159,7 +183,11 @@ def run_job(job_id, payload):
         name = payload.get("name") or "video"
         user = payload.get("user") or None
         files = []
-        if media:
+        merge = payload.get("merge") or {}
+        if is_http(merge.get("video")):
+            audio = merge.get("audio") if is_http(merge.get("audio")) else None
+            files = [download_merge(merge["video"], audio, name, page, user_dir(user))]
+        elif media:
             folder = user_dir(user)
             for i, u in enumerate(media):
                 files.append(download_direct(u, name, page, i, len(media), folder))
@@ -250,6 +278,7 @@ class Handler(BaseHTTPRequestHandler):
                 "mediaUrls": q.get("media") or [],
                 "name": (q.get("name") or ["video"])[0],
                 "user": (q.get("user") or [""])[0] or None,
+                "merge": {"video": (q.get("mergeVideo") or [""])[0], "audio": (q.get("mergeAudio") or [""])[0]},
                 "browser": (q.get("browser") or [""])[0] or None,
             }
             if payload["browser"] not in (None, "safari", "chrome", "firefox", "edge", "brave"):

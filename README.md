@@ -60,6 +60,8 @@ Chrome's IG / Threads downloads work without the helper; Safari and the yt-dlp f
 - 按鈕沒出現：擴充功能安裝或更新後要重新整理頁面。/ No button: reload the page after installing or updating the extension.
 - IG 失敗：確認在同一個瀏覽器已登入 IG。IG 改版時可能需要更新 `resolve.js`。/ IG fails: make sure you are logged in to IG in that browser. IG changes may require updating `resolve.js`.
 - 照片貼文按 Video 會提示改用 Image，不會再丟給 yt-dlp。/ Pressing Video on a photo post now tells you to use Image instead of sending it to yt-dlp.
+- Threads 登入後影片常以串流（blob）播放：VDD 會從播放器資料取得原始 mp4；若只有分開的影像與聲音軌，會由 helper 用 ffmpeg 合併（需要 helper 在執行）。Threads 不會再交給 yt-dlp（它不支援 Threads）。
+  When logged in, Threads often plays videos as a stream (blob): VDD reads the original MP4 from the player data; if there are only separate video and audio tracks, the helper joins them with ffmpeg (the helper must be running). Threads is never sent to yt-dlp (it does not support Threads).
 - Threads 的影片封面來自貼文的 og:image，最大約 640px。IG 的封面則是原尺寸。/ Threads video covers come from the post's og:image (about 640px max); IG covers are full size.
 - yt-dlp 失敗：重新啟動 `Start VDD.command`（會自動更新 yt-dlp）。/ yt-dlp fails: restart `Start VDD.command` (it updates yt-dlp).
 

@@ -5,6 +5,7 @@ var w = window.open('about:blank', 'vdd', 'width=560,height=380');
 VDDResolve.resolveVisible('__KIND__').then(function (i) {
   var q = 'page=' + encodeURIComponent(i.pageUrl) + '&name=' + encodeURIComponent(i.name) + '&browser=safari' + (i.user ? '&user=' + encodeURIComponent(i.user) : '');
   i.mediaUrls.forEach(function (u) { q += '&media=' + encodeURIComponent(u); });
+  if (i.merge) q += '&mergeVideo=' + encodeURIComponent(i.merge.video) + (i.merge.audio ? '&mergeAudio=' + encodeURIComponent(i.merge.audio) : '');
   var url = 'http://127.0.0.1:__PORT__/dl?' + q;
   if (w) w.location.href = url; else location.href = url;
 }, function (e) { if (w) w.close(); alert('VDD: ' + e.message); });

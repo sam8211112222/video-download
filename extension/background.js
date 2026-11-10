@@ -1,3 +1,4 @@
+importScripts('resolve.js'); // for vddFiberProbe
 const SERVER = 'http://127.0.0.1:17723';
 
 function safeName(s) {
@@ -59,7 +60,7 @@ async function downloadViaServer(info) {
     res = await fetch(`${SERVER}/download`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pageUrl: info.pageUrl, name: info.name, user: info.user || null, cookies })
+      body: JSON.stringify({ pageUrl: info.pageUrl, name: info.name, user: info.user || null, merge: info.merge || null, cookies })
     });
   } catch (_) {
     return { ok: false, error: 'This video needs the VDD helper app.\nStart it with "Start VDD.command" and try again.' };
@@ -86,6 +87,7 @@ async function pollJob(id) {
 }
 
 async function handle(info) {
+  if (info.merge) return downloadViaServer(info); // needs ffmpeg in the helper
   if (info.mediaUrls && info.mediaUrls.length) {
     try {
       return await downloadDirect(info);
@@ -97,13 +99,21 @@ async function handle(info) {
   return downloadViaServer(info);
 }
 
-chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
+chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   if (msg && msg.type === 'vdd-download') {
     handle(msg.info).then(reply, e => reply({ ok: false, error: String(e) }));
     return true;
   }
   if (msg && msg.type === 'vdd-page') {
     downloadViaServer({ pageUrl: msg.url, name: msg.title }).then(reply);
+    return true;
+  }
+  if (msg && msg.type === 'vdd-probe' && sender.tab) {
+    chrome.scripting.executeScript({
+      target: { tabId: sender.tab.id, frameIds: [sender.frameId || 0] },
+      world: 'MAIN',
+      func: vddFiberProbe
+    }).then(r => reply(r && r[0] ? r[0].result : null), () => reply(null));
     return true;
   }
   if (msg && msg.type === 'vdd-ping') {
