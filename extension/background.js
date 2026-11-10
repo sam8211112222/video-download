@@ -60,7 +60,7 @@ async function downloadViaServer(info) {
     res = await fetch(`${SERVER}/download`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pageUrl: info.pageUrl, name: info.name, user: info.user || null, merge: info.merge || null, cookies })
+      body: JSON.stringify({ pageUrl: info.pageUrl, mediaUrls: info.mediaUrls || [], name: info.name, user: info.user || null, merge: info.merge || null, cookies })
     });
   } catch (_) {
     return { ok: false, error: 'This video needs the VDD helper app.\nStart it with "Start VDD.command" and try again.' };
@@ -68,7 +68,8 @@ async function downloadViaServer(info) {
   if (!res.ok) return { ok: false, error: 'VDD helper error ' + res.status };
   const { id } = await res.json();
   pollJob(id);
-  return { ok: true, message: 'Sent to VDD helper (yt-dlp)… you will get a notification when done.' };
+  const how = info.mediaUrls && info.mediaUrls.length ? '' : ' (yt-dlp)';
+  return { ok: true, message: `Sent to VDD helper${how}… you will get a notification when done.` };
 }
 
 async function pollJob(id) {
@@ -86,8 +87,17 @@ async function pollJob(id) {
   }
 }
 
+async function helperRunning() {
+  try { return (await fetch(`${SERVER}/ping`, { signal: AbortSignal.timeout(1500) })).ok; } catch (_) { return false; }
+}
+
 async function handle(info) {
   if (info.merge) return downloadViaServer(info); // needs ffmpeg in the helper
+  // Videos go through the helper when it runs: logged-in Threads/IG often
+  // serve VP9, which macOS cannot play, and the helper converts it.
+  if (info.kind === 'video' && info.mediaUrls && info.mediaUrls.length && await helperRunning()) {
+    return downloadViaServer(info);
+  }
   if (info.mediaUrls && info.mediaUrls.length) {
     try {
       return await downloadDirect(info);

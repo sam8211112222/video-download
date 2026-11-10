@@ -33,6 +33,9 @@ Double-click `Start VDD.command`. The first run installs yt-dlp.
 Chrome 的 IG / Threads 下載不需要 helper；Safari 以及 yt-dlp 備援需要。
 Chrome's IG / Threads downloads work without the helper; Safari and the yt-dlp fallback need it.
 
+helper 有在執行時，Chrome 的影片下載也會經過它，確保格式是 Mac 能播的（登入後常拿到 VP9）。
+When the helper is running, Chrome's video downloads also go through it so the format is one macOS can play (logged-in sessions often get VP9).
+
 ### 2a. Chrome
 
 1. 打開 `chrome://extensions`，開啟「開發人員模式」。/ Open `chrome://extensions` and turn on Developer mode.
