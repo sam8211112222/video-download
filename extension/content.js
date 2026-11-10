@@ -27,9 +27,11 @@
   var btnCover = makeBtn(ICON_IMG, 'Cover', 'Download the cover image (VDD)', function () { return VDDResolve.resolveCover(current); });
   var btnImage = makeBtn(ICON_IMG, 'Image', 'Download this photo (VDD)', function () { return VDDResolve.resolveImage(current); });
 
-  // Capture phase + stopping propagation keeps clicks from pausing/advancing the media.
+  // Stop clicks on the bar from reaching the page (which would pause/advance
+  // the media). Must be bubble phase: in capture phase the bar would swallow
+  // the click before it reaches the button, and no button would work.
   ['pointerdown', 'mousedown', 'mouseup', 'click'].forEach(function (t) {
-    bar.addEventListener(t, function (e) { e.stopPropagation(); }, true);
+    bar.addEventListener(t, function (e) { e.stopPropagation(); }, false);
   });
 
   var current = null, currentType = null, hideTimer = null;
