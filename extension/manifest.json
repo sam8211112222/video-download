@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "VDD Video Downloader",
-  "version": "1.4.0",
-  "description": "Download the videos, covers and photos you are viewing (Instagram, Threads and more) straight from the page.",
+  "version": "1.5.0",
+  "description": "Download the videos, covers and photos you are viewing (Instagram, Threads, X, Facebook and more) straight from the page.",
   "permissions": ["downloads", "cookies", "activeTab", "scripting"],
   "host_permissions": ["<all_urls>"],
   "background": { "service_worker": "background.js" },

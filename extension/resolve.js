@@ -88,10 +88,16 @@ var VDDResolve = (function () {
   var host = location.hostname;
   var isIG = /(^|\.)instagram\.com$/.test(host);
   var isThreads = /(^|\.)threads\.(net|com)$/.test(host);
+  var isX = /(^|\.)(x|twitter)\.com$/.test(host);
+  var isFB = /(^|\.)facebook\.com$/.test(host);
   // Skips /reels/audio/<id> (the music link on every reel), which is not a post.
   var IG_POST_RE = /\/(?:p|reel|reels|tv)\/(?!audio\/)([A-Za-z0-9_-]{5,})/;
   var IG_STORY_RE = /\/stories\/([^/]+)\/(\d+)/;
   var TH_POST_RE = /\/@([^/]+)\/post\/([A-Za-z0-9_-]+)/;
+  var X_POST_RE = /\/([A-Za-z0-9_]{1,15})\/status\/(\d+)/;
+  // Facebook video links: /<page>/videos/[<slug>/]<id>, /reel/<id>, /watch/?v=<id>
+  var FB_POST_RE = /(?:facebook\.com)?\/(?:([A-Za-z0-9.]+)\/videos\/(?:[^/?#]+\/)?(\d+)|reel\/(\d+)|watch\/?\?v=(\d+))/;
+  var FB_RESERVED = /^(watch|reel|groups|events|stories|photo|photos|videos|profile\.php|share|people|pages)$/;
   var MIN_IMG = 150; // ignore avatars, icons, emoji
   // How to run vddFiberProbe: directly (bookmarklet, page world). The extension
   // replaces this, because content scripts cannot see the page's React data.
@@ -308,6 +314,43 @@ var VDDResolve = (function () {
     };
   }
 
+  // ------------------------------------------------------------ X / Twitter
+  function xPost(el) {
+    var m = closestLink(el, X_POST_RE) || location.pathname.match(X_POST_RE);
+    return m ? { user: m[1], pageUrl: 'https://x.com/' + m[1] + '/status/' + m[2], name: m[1] + '_' + m[2] }
+             : { user: null, pageUrl: location.href, name: 'x' };
+  }
+
+  // Full-size photo: pbs.twimg.com/media/<id>?format=jpg&name=small -> name=orig
+  function xOriginal(src) {
+    try {
+      var u = new URL(src);
+      if (u.hostname === 'pbs.twimg.com' && u.pathname.indexOf('/media/') === 0) {
+        u.searchParams.set('name', 'orig');
+        return u.href;
+      }
+    } catch (e) { /* not a URL */ }
+    return src;
+  }
+
+  // ------------------------------------------------------------ Facebook
+  function fbPost(el) {
+    var m = closestLink(el, FB_POST_RE) || (location.pathname + location.search).match(FB_POST_RE);
+    var id = m && (m[2] || m[3] || m[4]);
+    var user = m && m[1] && !FB_RESERVED.test(m[1]) ? m[1] : null;
+    if (!user && /\/videos\/|\/reel\/|\/watch/.test(location.pathname)) {
+      // On a video's own page the title ends with "| <Page name> | Facebook".
+      var parts = document.title.split(' | ');
+      if (parts.length >= 3 && parts[parts.length - 1] === 'Facebook') user = parts[parts.length - 2];
+    }
+    return {
+      user: user || 'facebook',
+      pageUrl: id ? (m[1] && m[2] ? 'https://www.facebook.com/' + m[1] + '/videos/' + id + '/'
+                                   : 'https://www.facebook.com/watch/?v=' + id) : location.href,
+      name: (user || 'facebook') + '_' + (id || Date.now())
+    };
+  }
+
   function pageName() { return (document.title || host).slice(0, 80); }
 
   // ------------------------------------------------------------ public API
@@ -338,6 +381,25 @@ var VDDResolve = (function () {
         (pr ? ' (player: ' + (pr.types.join(', ') || 'unknown') + ')' : ' (no player data)') +
         '. Try playing the video first, or open the post itself.');
     }
+    if (isX && video) {
+      // X streams video (HLS), so yt-dlp downloads it from the tweet URL.
+      // GIFs are plain MP4 files and are fetched directly.
+      var xp = xPost(video), xs = httpSrc(video);
+      var xok = xs && !/\.(m3u8|mpd)(\?|$)/i.test(xs);
+      return { mediaUrls: xok ? [xs] : [], pageUrl: xp.pageUrl, name: xp.name, user: xp.user, kind: 'video' };
+    }
+    if (isFB && video) {
+      // Same Meta player as Threads: take the MP4 from the player's data,
+      // else let yt-dlp try the post URL.
+      var fp = fbPost(video);
+      var fout = { mediaUrls: [], pageUrl: fp.pageUrl, name: fp.name, user: fp.user, kind: 'video' };
+      var fs = httpSrc(video);
+      if (fs) { fout.mediaUrls = [fs]; return fout; }
+      var fpr = await probe(video).catch(function () { return null; });
+      if (fpr && fpr.progressive) { fout.mediaUrls = [fpr.progressive]; return fout; }
+      if (fpr && fpr.dashVideo) { fout.merge = { video: fpr.dashVideo, audio: fpr.dashAudio || null }; return fout; }
+      return fout;
+    }
     var src = video && httpSrc(video);
     // A plain file URL (not an HLS/DASH manifest) can be fetched directly.
     var ok = src && !/\.(m3u8|mpd)(\?|$)/i.test(src);
@@ -357,6 +419,17 @@ var VDDResolve = (function () {
       pageUrl = p.pageUrl; name = p.name; user = p.user;
       url = await ogImage(p.pageUrl.replace(/^https:\/\/www\.threads\.com/, location.origin))
         .catch(function () { return null; });
+    } else if (isX) {
+      var xc = xPost(video);
+      pageUrl = xc.pageUrl; name = xc.name; user = xc.user;
+      if (video && video.poster) url = xOriginal(video.poster);
+    } else if (isFB) {
+      var fc = fbPost(video);
+      pageUrl = fc.pageUrl; name = fc.name; user = fc.user;
+      if (fc.pageUrl !== location.href) {
+        url = await ogImage(fc.pageUrl.replace(/^https:\/\/www\.facebook\.com/, location.origin))
+          .catch(function () { return null; });
+      }
     }
     if (!url && video && video.poster) url = video.poster;
     if (!url) url = await ogImage(location.href).catch(function () { return null; });
@@ -378,6 +451,13 @@ var VDDResolve = (function () {
     } else if (isThreads) {
       var p = threadsPost(img);
       name = p.name; pageUrl = p.pageUrl; user = p.user;
+    } else if (isX) {
+      var xi = xPost(img);
+      name = xi.name; pageUrl = xi.pageUrl; user = xi.user;
+      return { mediaUrls: [xOriginal(img.currentSrc || img.src)], pageUrl: pageUrl, name: name, user: user, kind: 'image' };
+    } else if (isFB) {
+      var fi = fbPost(img);
+      name = fi.name; pageUrl = fi.pageUrl; user = fi.user;
     }
     return { mediaUrls: [largestImg(img)], pageUrl: pageUrl, name: name, user: user, kind: 'image' };
   }
@@ -391,7 +471,7 @@ var VDDResolve = (function () {
       return el.tagName === 'VIDEO' ? resolveCover(el) : resolveImage(el);
     }
     var v = pickVideo();
-    if (!v && (isIG || isThreads)) throw new Error('No video found on screen');
+    if (!v && (isIG || isThreads || isX || isFB)) throw new Error('No video found on screen');
     return resolveVideo(v);
   }
 

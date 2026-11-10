@@ -223,7 +223,10 @@ def download_ytdlp(page_url, cookies_txt, browser, user):
     # (for Instagram "channel" is the username).
     folder = safe_name(user).replace("%", "%%") if user else "%(channel,uploader,uploader_id|Other)s"
     base_opts = {
-        "outtmpl": str(DOWNLOAD_DIR) + "/" + folder + "/%(channel,uploader,id)s_%(id)s.%(ext)s",
+        # File: <user>_<media id>, e.g. BrooklynNets_1349774757969989634.mp4
+        "outtmpl": str(DOWNLOAD_DIR) + "/" + folder + "/" +
+                   (safe_name(user).replace("%", "%%") if user else "%(uploader_id,channel,uploader,id)s") +
+                   "_%(id)s.%(ext)s",
         "format": "bv*[vcodec^=avc1]+ba[acodec^=mp4a]/b[vcodec^=avc1]/bv*+ba/b",
         "merge_output_format": "mp4",
         "noplaylist": False,
@@ -261,7 +264,7 @@ def download_ytdlp(page_url, cookies_txt, browser, user):
                     for e in entries:
                         if e and e.get("requested_downloads"):
                             files += [r.get("filepath") for r in e["requested_downloads"]]
-                return [Path(f) for f in files if f]
+                return [Path(f) for f in dict.fromkeys(files) if f]  # merge hooks repeat names
             except Exception as e:  # try next cookie source
                 msg = str(e)
                 if "Operation not permitted" in msg and "Cookies" in msg:

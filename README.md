@@ -15,7 +15,9 @@ Files are sorted into one folder per account, e.g. `~/Downloads/VDD Videos/irisl
 |---|---|
 | Threads | 頁面上的 `<video>` 就是 mp4，直接下載 / The page's `<video>` is a plain MP4, downloaded directly |
 | Instagram 貼文、Reels、限時動態 / posts, Reels, Stories | 用你**已登入**的 IG 連線呼叫 IG 網頁 API，取得原始 mp4（含聲音）/ Uses your **logged-in** IG session to call IG's web API for the original MP4 (with audio) |
-| 其他網站 (YouTube, X, Facebook…) / Other sites | 交給本機的 yt-dlp / Handed to local yt-dlp |
+| X (Twitter) | 影片交給 yt-dlp（用推文網址），照片下載原尺寸（`name=orig`），封面用影片的 poster / Videos via yt-dlp (tweet URL), photos at original size, cover from the video poster |
+| Facebook | 從播放器資料取得 mp4（同 Threads），失敗時交給 yt-dlp；帳號抓不到時放 `facebook` 資料夾 / MP4 from the player data (like Threads), yt-dlp as fallback; files go to a `facebook` folder when the account is unknown |
+| 其他網站 (YouTube…) / Other sites | 交給本機的 yt-dlp / Handed to local yt-dlp |
 
 私人帳號的限時動態：只要你已登入並且有追蹤該帳號（看得到），就能下載。
 Private-account Stories: works whenever you are logged in and follow that account (i.e. you can already see them).
