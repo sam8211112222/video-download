@@ -58,6 +58,11 @@ def is_http(url):
     return isinstance(url, str) and url.lower().startswith(("http://", "https://"))
 
 
+def is_local(url):
+    host = (urllib.parse.urlparse(url).hostname or "").lower()
+    return host in ("127.0.0.1", "localhost", "::1") or host.endswith(".localhost")
+
+
 def notify(title, message):
     """macOS notification (best effort)."""
     if sys.platform != "darwin":
@@ -167,7 +172,11 @@ def download_ytdlp(page_url, cookies_txt, browser, user):
                             files += [r.get("filepath") for r in e["requested_downloads"]]
                 return [Path(f) for f in files if f]
             except Exception as e:  # try next cookie source
-                errors.append(f"[{label}] {e}")
+                msg = str(e)
+                if "Operation not permitted" in msg and "Cookies" in msg:
+                    msg = ("macOS blocks reading Safari cookies (would need Full Disk Access); "
+                           "log-in-only posts cannot use the yt-dlp fallback from Safari.")
+                errors.append(f"[{label}] {msg}")
         raise RuntimeError("yt-dlp failed:\n" + "\n".join(errors))
     finally:
         if cookie_file:
@@ -191,6 +200,9 @@ def run_job(job_id, payload):
             folder = user_dir(user)
             for i, u in enumerate(media):
                 files.append(download_direct(u, name, page, i, len(media), folder))
+        elif is_http(page) and is_local(page):
+            raise ValueError("Open an Instagram or Threads post first, then use VDD there "
+                             "(it was used on the VDD page itself).")
         elif is_http(page):
             files = download_ytdlp(page, payload.get("cookies"), payload.get("browser"), user)
         else:
